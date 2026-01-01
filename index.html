@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Do'kon</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: var(--tg-theme-bg-color, #1a202c);
+            color: var(--tg-theme-text-color, #ffffff);
+        }
+        .card-bg {
+            background-color: var(--tg-theme-secondary-bg-color, #2d3748);
+        }
+        .btn-main {
+            background-color: var(--tg-theme-button-color, #3b82f6);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased pb-20">
+
+    <div class="fixed top-0 w-full z-10 card-bg shadow-md p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">🛒 Do'kon</h1>
+        <div class="flex items-center space-x-2 bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/50">
+            <span class="text-2xl">💎</span>
+            <span id="user-points" class="font-bold text-yellow-400 text-lg">Yuklanmoqda...</span>
+        </div>
+    </div>
+
+    <div class="mt-20 px-4">
+        
+        <div class="flex space-x-2 mb-6 bg-gray-800 p-1 rounded-lg">
+            <button onclick="switchTab('products')" id="tab-products" class="flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow">Mahsulotlar</button>
+            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white">Tarix</button>
+        </div>
+
+        <div id="products-view" class="grid grid-cols-2 gap-4">
+            <div class="col-span-2 text-center text-gray-400 py-10">Mahsulotlar yuklanmoqda...</div>
+        </div>
+
+        <div id="history-view" class="hidden space-y-3">
+            <div class="text-center text-gray-400 py-10">Sizda hali xaridlar yo'q</div>
+        </div>
+
+    </div>
+
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50 text-white font-medium text-center min-w-[200px]">
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Ilovani to'liq ekranga yoyish
+
+        const userId = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
+        // Test uchun (agar brauzerda ochsangiz):
+        // const userId = 12345678; 
+
+        const API_URL = ""; // Bo'sh qolsa shu serverga murojaat qiladi
+
+        // Ma'lumotlarni yuklash
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_URL}/api/user?user_id=${userId}`);
+                const data = await response.json();
+                
+                if(data.error) {
+                    alert("Foydalanuvchi topilmadi. Botga /start bosing.");
+                    return;
+                }
+
+                // Ballni yangilash
+                document.getElementById('user-points').innerText = data.points;
+
+                // Mahsulotlarni chizish
+                const productsContainer = document.getElementById('products-view');
+                productsContainer.innerHTML = '';
+                
+                data.shop_items.forEach(item => {
+                    const img = item.image ? item.image : "https://via.placeholder.com/150?text=No+Image";
+                    productsContainer.innerHTML += `
+                        <div class="card-bg rounded-xl overflow-hidden shadow-lg flex flex-col">
+                            <div class="h-32 bg-gray-700 flex items-center justify-center overflow-hidden">
+                                <span class="text-4xl">📦</span>
+                            </div>
+                            <div class="p-3 flex flex-col flex-grow">
+                                <h3 class="font-bold text-sm mb-1 truncate">${item.name}</h3>
+                                <p class="text-xs text-gray-400 mb-2 line-clamp-2 h-8">${item.description}</p>
+                                <div class="mt-auto flex justify-between items-center">
+                                    <span class="text-yellow-400 font-bold text-sm">${item.cost} ball</span>
+                                    <button onclick="buyItem(${item.id})" class="btn-main px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform">
+                                        Sotib olish
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Tarixni chizish
+                const historyContainer = document.getElementById('history-view');
+                if (data.history.length > 0) {
+                    historyContainer.innerHTML = '';
+                    data.history.forEach(tx => {
+                        historyContainer.innerHTML += `
+                            <div class="card-bg p-4 rounded-xl flex justify-between items-center shadow-sm">
+                                <div>
+                                    <h4 class="font-bold text-sm">${tx.name}</h4>
+                                    <p class="text-xs text-gray-500">${tx.date}</p>
+                                </div>
+                                <span class="text-red-400 font-bold text-sm">-${tx.cost} ball</span>
+                            </div>
+                        `;
+                    });
+                }
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('products-view').innerHTML = '<div class="col-span-2 text-center text-red-400">Xatolik yuz berdi.</div>';
+            }
+        }
+
+        // Sotib olish funksiyasi
+        async function buyItem(itemId) {
+            tg.MainButton.showProgress();
+            
+            try {
+                const response = await fetch(`${API_URL}/api/buy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, item_id: itemId })
+                });
+                
+                const result = await response.json();
+                tg.MainButton.hideProgress();
+
+                if (result.status === 'success') {
+                    document.getElementById('user-points').innerText = result.new_points;
+                    showToast(result.message, 'bg-green-600');
+                    loadData(); // Tarixni yangilash uchun qayta yuklaymiz
+                } else {
+                    showToast(result.message, 'bg-red-600');
+                }
+            } catch (e) {
+                tg.MainButton.hideProgress();
+                showToast("Internet xatosi!", 'bg-red-600');
+            }
+        }
+
+        // Tablarni almashtirish
+        function switchTab(tab) {
+            const prodView = document.getElementById('products-view');
+            const histView = document.getElementById('history-view');
+            const btnProd = document.getElementById('tab-products');
+            const btnHist = document.getElementById('tab-history');
+
+            if (tab === 'products') {
+                prodView.classList.remove('hidden');
+                histView.classList.add('hidden');
+                btnProd.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow";
+                btnHist.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white";
+            } else {
+                prodView.classList.add('hidden');
+                histView.classList.remove('hidden');
+                btnHist.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow";
+                btnProd.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white";
+            }
+        }
+
+        function showToast(msg, bgClass) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.className = `fixed bottom-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300 z-50 text-white font-medium text-center min-w-[200px] ${bgClass}`;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Boshlanishida yuklash
+        loadData();
+    </script>
+</body>
+</html>
