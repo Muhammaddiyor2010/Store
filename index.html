@@ -2,154 +2,167 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Do'kon</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background-color: var(--tg-theme-bg-color, #1a202c);
-            color: var(--tg-theme-text-color, #ffffff);
-        }
-        .card-bg {
-            background-color: var(--tg-theme-secondary-bg-color, #2d3748);
-        }
-        .btn-main {
-            background-color: var(--tg-theme-button-color, #3b82f6);
-            color: var(--tg-theme-button-text-color, #ffffff);
-        }
+        body { background-color: var(--tg-theme-bg-color, #1a202c); color: var(--tg-theme-text-color, #ffffff); }
+        .card-bg { background-color: var(--tg-theme-secondary-bg-color, #2d3748); }
+        .btn-main { background-color: var(--tg-theme-button-color, #3b82f6); color: var(--tg-theme-button-text-color, #ffffff); }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #374151; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
-<body class="font-sans antialiased pb-20">
+<body class="font-sans antialiased pb-24 select-none">
 
-    <div class="fixed top-0 w-full z-10 card-bg shadow-md p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">🛒 Do'kon</h1>
-        <div class="flex items-center space-x-2 bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/50">
-            <span class="text-2xl">💎</span>
-            <span id="user-points" class="font-bold text-yellow-400 text-lg">Yuklanmoqda...</span>
+    <div class="fixed top-0 w-full z-20 card-bg shadow-lg p-3 flex justify-between items-center border-b border-gray-700">
+        <h1 class="text-lg font-bold flex items-center gap-2">🛒 <span id="user-name">Foydalanuvchi</span></h1>
+        <div class="flex items-center space-x-1 bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/30">
+            <span class="text-xl">💎</span>
+            <span id="user-points" class="font-bold text-yellow-400">...</span>
         </div>
     </div>
 
     <div class="mt-20 px-4">
-        
-        <div class="flex space-x-2 mb-6 bg-gray-800 p-1 rounded-lg">
-            <button onclick="switchTab('products')" id="tab-products" class="flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow">Mahsulotlar</button>
-            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white">Tarix</button>
+        <div class="flex p-1 space-x-1 bg-gray-800/50 rounded-xl mb-6 backdrop-blur-sm">
+            <button onclick="switchTab('products')" id="tab-products" class="w-full py-2.5 rounded-lg text-sm font-medium transition-all bg-gray-600 text-white shadow-sm">🛍 Mahsulotlar</button>
+            <button onclick="switchTab('history')" id="tab-history" class="w-full py-2.5 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-200">📜 Tarix</button>
         </div>
 
-        <div id="products-view" class="grid grid-cols-2 gap-4">
-            <div class="col-span-2 text-center text-gray-400 py-10">Mahsulotlar yuklanmoqda...</div>
+        <div id="products-view" class="grid grid-cols-2 gap-3">
+            <div class="card-bg rounded-2xl h-48 skeleton"></div>
+            <div class="card-bg rounded-2xl h-48 skeleton"></div>
         </div>
 
-        <div id="history-view" class="hidden space-y-3">
-            <div class="text-center text-gray-400 py-10">Sizda hali xaridlar yo'q</div>
-        </div>
-
+        <div id="history-view" class="hidden space-y-2"></div>
     </div>
 
-    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50 text-white font-medium text-center min-w-[200px]">
-    </div>
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-2xl hidden z-50 text-white font-medium text-center text-sm min-w-[250px] backdrop-blur-md"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Ilovani to'liq ekranga yoyish
+        tg.expand();
+        
+        // Asosiy o'zgarish: URL bo'sh qoladi, shunda u serverdagi /api/... ga murojaat qiladi
+        const API_URL = ""; 
 
         const userId = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        // Test uchun (agar brauzerda ochsangiz):
-        // const userId = 12345678; 
+        const firstName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "User";
+        document.getElementById('user-name').innerText = firstName;
 
-        const API_URL = ""; // Bo'sh qolsa shu serverga murojaat qiladi
-
-        // Ma'lumotlarni yuklash
         async function loadData() {
             try {
+                // To'g'ridan-to'g'ri /api/user ga murojaat
                 const response = await fetch(`${API_URL}/api/user?user_id=${userId}`);
+                if (!response.ok) throw new Error("Server xatosi");
+                
                 const data = await response.json();
                 
                 if(data.error) {
-                    alert("Foydalanuvchi topilmadi. Botga /start bosing.");
+                    document.getElementById('products-view').innerHTML = `<div class="col-span-2 text-center text-red-400 p-4">Botga /start bosing.</div>`;
                     return;
                 }
 
-                // Ballni yangilash
                 document.getElementById('user-points').innerText = data.points;
-
-                // Mahsulotlarni chizish
-                const productsContainer = document.getElementById('products-view');
-                productsContainer.innerHTML = '';
-                
-                data.shop_items.forEach(item => {
-                    const img = item.image ? item.image : "https://via.placeholder.com/150?text=No+Image";
-                    productsContainer.innerHTML += `
-                        <div class="card-bg rounded-xl overflow-hidden shadow-lg flex flex-col">
-                            <div class="h-32 bg-gray-700 flex items-center justify-center overflow-hidden">
-                                <span class="text-4xl">📦</span>
-                            </div>
-                            <div class="p-3 flex flex-col flex-grow">
-                                <h3 class="font-bold text-sm mb-1 truncate">${item.name}</h3>
-                                <p class="text-xs text-gray-400 mb-2 line-clamp-2 h-8">${item.description}</p>
-                                <div class="mt-auto flex justify-between items-center">
-                                    <span class="text-yellow-400 font-bold text-sm">${item.cost} ball</span>
-                                    <button onclick="buyItem(${item.id})" class="btn-main px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform">
-                                        Sotib olish
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                // Tarixni chizish
-                const historyContainer = document.getElementById('history-view');
-                if (data.history.length > 0) {
-                    historyContainer.innerHTML = '';
-                    data.history.forEach(tx => {
-                        historyContainer.innerHTML += `
-                            <div class="card-bg p-4 rounded-xl flex justify-between items-center shadow-sm">
-                                <div>
-                                    <h4 class="font-bold text-sm">${tx.name}</h4>
-                                    <p class="text-xs text-gray-500">${tx.date}</p>
-                                </div>
-                                <span class="text-red-400 font-bold text-sm">-${tx.cost} ball</span>
-                            </div>
-                        `;
-                    });
-                }
+                renderProducts(data.shop_items);
+                renderHistory(data.history);
 
             } catch (e) {
                 console.error(e);
-                document.getElementById('products-view').innerHTML = '<div class="col-span-2 text-center text-red-400">Xatolik yuz berdi.</div>';
+                document.getElementById('products-view').innerHTML = 
+                    `<div class="col-span-2 text-center text-gray-500 py-10">
+                        Internetni tekshiring yoki qayta urinib ko'ring.<br>
+                        <button onclick="window.location.reload()" class="mt-2 text-blue-400 underline">Yangilash</button>
+                    </div>`;
             }
         }
 
-        // Sotib olish funksiyasi
+        function renderProducts(items) {
+            const container = document.getElementById('products-view');
+            container.innerHTML = '';
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="col-span-2 text-center text-gray-500 py-10">Do\'kon bo\'sh</div>';
+                return;
+            }
+
+            items.forEach(item => {
+                // Rasmni serverdan olish
+                let imgUrl = item.image;
+                if (!imgUrl.startsWith('http')) {
+                    imgUrl = `${API_URL}/${imgUrl}`; 
+                }
+
+                container.innerHTML += `
+                    <div class="card-bg rounded-2xl overflow-hidden shadow-lg flex flex-col border border-gray-700/50">
+                        <div class="h-32 bg-gray-700 overflow-hidden relative">
+                             <img src="${imgUrl}" alt="${item.name}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400?text=No+Image'">
+                        </div>
+                        <div class="p-3 flex flex-col flex-grow">
+                            <h3 class="font-bold text-sm mb-1 line-clamp-1">${item.name}</h3>
+                            <p class="text-xs text-gray-400 mb-3 line-clamp-2 leading-relaxed">${item.description}</p>
+                            <div class="mt-auto flex justify-between items-center">
+                                <span class="text-yellow-400 font-bold text-sm bg-yellow-500/10 px-2 py-0.5 rounded-md">${item.cost} 💎</span>
+                                <button onclick="buyItem(${item.id})" class="btn-main px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform shadow-md">
+                                    Olish
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderHistory(history) {
+            const container = document.getElementById('history-view');
+            container.innerHTML = '';
+            if (history.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-10">Hali hech narsa sotib olinmagan</div>';
+                return;
+            }
+            history.forEach(tx => {
+                container.innerHTML += `
+                    <div class="card-bg p-3 rounded-xl flex justify-between items-center border border-gray-700/30">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-blue-500/20 p-2 rounded-lg text-blue-400">🛍</div>
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-200">${tx.name}</h4>
+                                <p class="text-[10px] text-gray-500">${tx.date}</p>
+                            </div>
+                        </div>
+                        <span class="text-red-400 font-bold text-sm bg-red-500/10 px-2 py-1 rounded-md">-${tx.cost}</span>
+                    </div>
+                `;
+            });
+        }
+
         async function buyItem(itemId) {
             tg.MainButton.showProgress();
-            
             try {
                 const response = await fetch(`${API_URL}/api/buy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, item_id: itemId })
                 });
-                
                 const result = await response.json();
                 tg.MainButton.hideProgress();
 
                 if (result.status === 'success') {
                     document.getElementById('user-points').innerText = result.new_points;
-                    showToast(result.message, 'bg-green-600');
-                    loadData(); // Tarixni yangilash uchun qayta yuklaymiz
+                    showToast(result.message, 'bg-green-600/90');
+                    loadData(); 
+                    tg.HapticFeedback.notificationOccurred('success');
                 } else {
-                    showToast(result.message, 'bg-red-600');
+                    showToast(result.message, 'bg-red-600/90');
+                    tg.HapticFeedback.notificationOccurred('error');
                 }
             } catch (e) {
                 tg.MainButton.hideProgress();
-                showToast("Internet xatosi!", 'bg-red-600');
+                showToast("Aloqa xatosi!", 'bg-red-600/90');
             }
         }
 
-        // Tablarni almashtirish
         function switchTab(tab) {
             const prodView = document.getElementById('products-view');
             const histView = document.getElementById('history-view');
@@ -157,29 +170,24 @@
             const btnHist = document.getElementById('tab-history');
 
             if (tab === 'products') {
-                prodView.classList.remove('hidden');
-                histView.classList.add('hidden');
-                btnProd.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow";
-                btnHist.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white";
+                prodView.classList.remove('hidden'); histView.classList.add('hidden');
+                btnProd.className = "w-full py-2.5 rounded-lg text-sm font-medium transition-all bg-gray-600 text-white shadow-sm";
+                btnHist.className = "w-full py-2.5 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-200";
             } else {
-                prodView.classList.add('hidden');
-                histView.classList.remove('hidden');
-                btnHist.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all bg-gray-600 text-white shadow";
-                btnProd.className = "flex-1 py-2 rounded-md font-medium text-sm transition-all text-gray-400 hover:text-white";
+                prodView.classList.add('hidden'); histView.classList.remove('hidden');
+                btnHist.className = "w-full py-2.5 rounded-lg text-sm font-medium transition-all bg-gray-600 text-white shadow-sm";
+                btnProd.className = "w-full py-2.5 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-200";
             }
         }
 
         function showToast(msg, bgClass) {
             const toast = document.getElementById('toast');
             toast.innerText = msg;
-            toast.className = `fixed bottom-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300 z-50 text-white font-medium text-center min-w-[200px] ${bgClass}`;
+            toast.className = `fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-2xl transition-all duration-300 z-50 text-white font-medium text-center text-sm min-w-[250px] backdrop-blur-md ${bgClass}`;
             toast.classList.remove('hidden');
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
-        // Boshlanishida yuklash
         loadData();
     </script>
 </body>
