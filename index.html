@@ -6,136 +6,140 @@
     <title>Bot Do'koni</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
     <style>
-        /* Telegram ranglariga moslashish */
-        body {
-            background-color: var(--tg-theme-bg-color, #f3f4f6);
-            color: var(--tg-theme-text-color, #1f2937);
-        }
-        .card {
-            background-color: var(--tg-theme-secondary-bg-color, #ffffff);
-        }
-        .btn-primary {
-            background-color: var(--tg-theme-button-color, #3b82f6);
-            color: var(--tg-theme-button-text-color, #ffffff);
-        }
+        body { background-color: var(--tg-theme-bg-color, #f3f4f6); color: var(--tg-theme-text-color, #1f2937); }
+        .card { background-color: var(--tg-theme-secondary-bg-color, #ffffff); }
+        .btn-primary { background-color: var(--tg-theme-button-color, #3b82f6); color: var(--tg-theme-button-text-color, #ffffff); }
     </style>
 </head>
 <body class="p-4 select-none">
 
     <header class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">🛒 Do'kon</h1>
-        <div class="text-sm opacity-70">Ballaringiz: <span id="user-score">Yuklanmoqda...</span></div>
+        <div>
+            <h1 class="text-xl font-bold">Salom, <span id="user-name">...</span></h1>
+            <p class="text-xs opacity-70">Xush kelibsiz</p>
+        </div>
+        <div class="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-bold text-sm">
+            💎 <span id="user-score">0</span>
+        </div>
     </header>
 
     <div id="products-container" class="grid grid-cols-2 gap-4">
         </div>
 
-    <div id="loading" class="text-center py-10 hidden">
-        <span class="animate-pulse text-lg">Yuklanmoqda...</span>
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm hidden shadow-lg z-50 transition-opacity duration-300">
+        Xabar
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-
-        // Ilovani to'liq ekranga yoyish
         tg.expand();
 
-        // ---------------------------------------------------------
-        // MA'LUMOTLAR (Real loyihada bular API dan keladi)
-        // Hozircha Python bazadagi ma'lumotlarni simulyatsiya qilamiz
-        // ---------------------------------------------------------
-        const products = [
-            {
-                id: 1,
-                name: "VIP Status",
-                image: "https://cdn-icons-png.flaticon.com/512/6941/6941697.png",
-                description: "Botda cheklovsiz foydalanish huquqi.",
-                price: 100
-            },
-            {
-                id: 2,
-                name: "50 ta ball",
-                image: "https://cdn-icons-png.flaticon.com/512/715/715709.png",
-                description: "Hisobingizga qo'shimcha ball.",
-                price: 20
-            },
-            {
-                id: 3,
-                name: "Reklama",
-                image: "https://cdn-icons-png.flaticon.com/512/1055/1055666.png",
-                description: "Kanalimizda reklamangizni joylashtirish.",
-                price: 500
-            },
-            {
-                id: 4,
-                name: "Admin Aloqa",
-                image: "https://cdn-icons-png.flaticon.com/512/3062/3062362.png",
-                description: "Admin bilan to'g'ridan-to'g'ri bog'lanish.",
-                price: 50
+        // User ID ni Telegramdan olamiz
+        // Agar browserda test qilsangiz, pastdagi qatorni o'zgartiring: const userId = 12345678;
+        const userId = tg.initDataUnsafe?.user?.id;
+
+        const API_URL = ""; // Agar server va webapp bitta joyda bo'lsa bo'sh qoladi
+
+        // 1. User ma'lumotlarini yuklash
+        async function loadUser() {
+            if(!userId) return;
+            try {
+                const response = await fetch(`${API_URL}/api/user?user_id=${userId}`);
+                const data = await response.json();
+                document.getElementById('user-name').innerText = data.first_name || "Foydalanuvchi";
+                document.getElementById('user-score').innerText = data.score;
+            } catch (e) {
+                console.error("User yuklashda xato:", e);
             }
-        ];
-
-        // URL dan foydalanuvchi ballini o'qish (agar Python orqali uzatilsa)
-        // Masalan: https://site.com/?score=150
-        const urlParams = new URLSearchParams(window.location.search);
-        const userScore = urlParams.get('score') || 0;
-        document.getElementById('user-score').innerText = userScore;
-
-        // Mahsulotlarni chizish funksiyasi
-        function renderProducts() {
-            const container = document.getElementById('products-container');
-            container.innerHTML = "";
-
-            products.forEach(product => {
-                const card = document.createElement('div');
-                card.className = "card p-4 rounded-xl shadow-sm flex flex-col items-center text-center transition transform hover:scale-105";
-                
-                card.innerHTML = `
-                    <img src="${product.image}" alt="${product.name}" class="w-16 h-16 mb-3 object-cover rounded-md">
-                    <h3 class="font-bold text-lg leading-tight mb-1">${product.name}</h3>
-                    <p class="text-xs opacity-70 mb-3 h-8 overflow-hidden">${product.description}</p>
-                    <div class="mt-auto w-full">
-                        <span class="block font-bold text-lg mb-2 text-yellow-600">${product.price} ball</span>
-                        <button onclick="buyProduct(${product.id}, '${product.name}', ${product.price})" 
-                            class="btn-primary w-full py-2 rounded-lg font-medium text-sm active:opacity-80 transition">
-                            Sotib olish
-                        </button>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
         }
 
-        // Sotib olish funksiyasi
-        function buyProduct(id, name, price) {
-            // Telegram Popup oynasini chiqarish
-            tg.showPopup({
-                title: 'Xaridni tasdiqlang',
-                message: `Siz haqiqatan ham "${name}"ni ${price} ballga sotib olmoqchimisiz?`,
-                buttons: [
-                    {id: 'cancel', type: 'cancel'},
-                    {id: 'ok', type: 'ok', text: 'Ha, olaman'}
-                ]
-            }, function(btnId) {
-                if (btnId === 'ok') {
-                    // Botga ma'lumot yuborish
-                    const data = JSON.stringify({
-                        action: 'buy',
-                        product_id: id,
-                        product_name: name,
-                        price: price
-                    });
+        // 2. Mahsulotlarni yuklash
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_URL}/api/products`);
+                const products = await response.json();
+                
+                const container = document.getElementById('products-container');
+                container.innerHTML = "";
+
+                if (products.length === 0) {
+                    container.innerHTML = "<p class='col-span-2 text-center opacity-50'>Mahsulotlar yo'q</p>";
+                    return;
+                }
+
+                products.forEach(prod => {
+                    const card = document.createElement('div');
+                    card.className = "card p-4 rounded-xl shadow-sm flex flex-col items-center text-center";
+                    // Agar rasm bo'lmasa standart rasm qo'yamiz
+                    const img = "https://cdn-icons-png.flaticon.com/512/263/263142.png"; 
                     
-                    // WebAppni yopish va ma'lumotni botga uzatish
-                    tg.sendData(data);
+                    card.innerHTML = `
+                        <img src="${img}" class="w-14 h-14 mb-3 object-cover rounded-md">
+                        <h3 class="font-bold text-md leading-tight mb-1">${prod.name}</h3>
+                        <p class="text-xs opacity-70 mb-3 h-8 overflow-hidden line-clamp-2">${prod.description}</p>
+                        <div class="mt-auto w-full">
+                            <span class="block font-bold text-md mb-2 text-blue-600">${prod.price} ball</span>
+                            <button onclick="buyItem(${prod.id}, ${prod.price})" 
+                                class="btn-primary w-full py-2 rounded-lg font-medium text-sm active:opacity-80 transition">
+                                Sotib olish
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (e) {
+                console.error("Mahsulot yuklashda xato:", e);
+            }
+        }
+
+        // 3. Sotib olish funksiyasi (Serverga so'rov yuboradi)
+        async function buyItem(productId, price) {
+            if(!userId) {
+                showToast("❌ Telegram orqali kiring!");
+                return;
+            }
+
+            // Tasdiqlash
+            tg.showConfirm(`Rostdan ham ${price} ballga sotib olasizmi?`, async (confirm) => {
+                if(confirm) {
+                    try {
+                        const response = await fetch(`${API_URL}/api/buy`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ user_id: userId, product_id: productId })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            showToast("✅ " + result.message);
+                            document.getElementById('user-score').innerText = result.new_score;
+                            
+                            // Botga xabar yuborish (ixtiyoriy, agar bot ichida ham xabar chiqsin desangiz)
+                            // tg.sendData(JSON.stringify({action: 'bought', id: productId})); 
+                        } else {
+                            showToast("❌ " + result.message);
+                        }
+                    } catch (e) {
+                        showToast("❌ Server xatosi!");
+                    }
                 }
             });
         }
 
-        // Sahifa yuklanganda ishga tushirish
-        renderProducts();
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Dastur ishga tushishi
+        loadUser();
+        loadProducts();
 
     </script>
 </body>
