@@ -3,51 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Do'kon</title>
+    <title>Bot Do'koni</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <style>
+        /* Telegram ranglariga moslashish */
+        body {
+            background-color: var(--tg-theme-bg-color, #f3f4f6);
+            color: var(--tg-theme-text-color, #1f2937);
+        }
+        .card {
+            background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+        }
+        .btn-primary {
+            background-color: var(--tg-theme-button-color, #3b82f6);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+    </style>
 </head>
-<body class="bg-gray-100 p-4">
-    <h1 class="text-2xl font-bold mb-4">Do'kon</h1>
-    
-    <div class="mb-8">
-        <h2 class="text-xl mb-2">Narsalar</h2>
-        <div class="grid grid-cols-1 gap-4">
-            {% for item in items %}
-            <div class="bg-white p-4 rounded shadow">
-                <img src="{{ item[3] }}" alt="{{ item[1] }}" class="w-full h-48 object-cover mb-2">
-                <h3 class="font-bold">{{ item[1] }}</h3>
-                <p>{{ item[2] }}</p>
-                <p>Narx: {{ item[4] }} ball</p>
-                <button onclick="buyItem({{ item[0] }})" class="bg-blue-500 text-white px-4 py-2 rounded">Sotib olish</button>
-            </div>
-            {% endfor %}
+<body class="p-4 select-none">
+
+    <header class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">🛒 Do'kon</h1>
+        <div class="text-sm opacity-70">Ballaringiz: <span id="user-score">Yuklanmoqda...</span></div>
+    </header>
+
+    <div id="products-container" class="grid grid-cols-2 gap-4">
         </div>
+
+    <div id="loading" class="text-center py-10 hidden">
+        <span class="animate-pulse text-lg">Yuklanmoqda...</span>
     </div>
-    
-    <div>
-        <h2 class="text-xl mb-2">Oldingi sotib olganlar</h2>
-        <ul class="list-disc pl-4">
-            {% for trans in transactions %}
-            <li>{{ trans[0] }} - {{ trans[1] }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    
+
     <script>
-        // Get user_id from Telegram
-        const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
-        
-        function buyItem(itemId) {
-            fetch('/buy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({user_id: userId, item_id: itemId})
-            }).then(res => res.json()).then(data => {
-                if (data.success) alert('Sotib olindi!');
-                else alert('Ball yetarli emas!');
-                location.reload();
+        const tg = window.Telegram.WebApp;
+
+        // Ilovani to'liq ekranga yoyish
+        tg.expand();
+
+        // ---------------------------------------------------------
+        // MA'LUMOTLAR (Real loyihada bular API dan keladi)
+        // Hozircha Python bazadagi ma'lumotlarni simulyatsiya qilamiz
+        // ---------------------------------------------------------
+        const products = [
+            {
+                id: 1,
+                name: "VIP Status",
+                image: "https://cdn-icons-png.flaticon.com/512/6941/6941697.png",
+                description: "Botda cheklovsiz foydalanish huquqi.",
+                price: 100
+            },
+            {
+                id: 2,
+                name: "50 ta ball",
+                image: "https://cdn-icons-png.flaticon.com/512/715/715709.png",
+                description: "Hisobingizga qo'shimcha ball.",
+                price: 20
+            },
+            {
+                id: 3,
+                name: "Reklama",
+                image: "https://cdn-icons-png.flaticon.com/512/1055/1055666.png",
+                description: "Kanalimizda reklamangizni joylashtirish.",
+                price: 500
+            },
+            {
+                id: 4,
+                name: "Admin Aloqa",
+                image: "https://cdn-icons-png.flaticon.com/512/3062/3062362.png",
+                description: "Admin bilan to'g'ridan-to'g'ri bog'lanish.",
+                price: 50
+            }
+        ];
+
+        // URL dan foydalanuvchi ballini o'qish (agar Python orqali uzatilsa)
+        // Masalan: https://site.com/?score=150
+        const urlParams = new URLSearchParams(window.location.search);
+        const userScore = urlParams.get('score') || 0;
+        document.getElementById('user-score').innerText = userScore;
+
+        // Mahsulotlarni chizish funksiyasi
+        function renderProducts() {
+            const container = document.getElementById('products-container');
+            container.innerHTML = "";
+
+            products.forEach(product => {
+                const card = document.createElement('div');
+                card.className = "card p-4 rounded-xl shadow-sm flex flex-col items-center text-center transition transform hover:scale-105";
+                
+                card.innerHTML = `
+                    <img src="${product.image}" alt="${product.name}" class="w-16 h-16 mb-3 object-cover rounded-md">
+                    <h3 class="font-bold text-lg leading-tight mb-1">${product.name}</h3>
+                    <p class="text-xs opacity-70 mb-3 h-8 overflow-hidden">${product.description}</p>
+                    <div class="mt-auto w-full">
+                        <span class="block font-bold text-lg mb-2 text-yellow-600">${product.price} ball</span>
+                        <button onclick="buyProduct(${product.id}, '${product.name}', ${product.price})" 
+                            class="btn-primary w-full py-2 rounded-lg font-medium text-sm active:opacity-80 transition">
+                            Sotib olish
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
             });
         }
+
+        // Sotib olish funksiyasi
+        function buyProduct(id, name, price) {
+            // Telegram Popup oynasini chiqarish
+            tg.showPopup({
+                title: 'Xaridni tasdiqlang',
+                message: `Siz haqiqatan ham "${name}"ni ${price} ballga sotib olmoqchimisiz?`,
+                buttons: [
+                    {id: 'cancel', type: 'cancel'},
+                    {id: 'ok', type: 'ok', text: 'Ha, olaman'}
+                ]
+            }, function(btnId) {
+                if (btnId === 'ok') {
+                    // Botga ma'lumot yuborish
+                    const data = JSON.stringify({
+                        action: 'buy',
+                        product_id: id,
+                        product_name: name,
+                        price: price
+                    });
+                    
+                    // WebAppni yopish va ma'lumotni botga uzatish
+                    tg.sendData(data);
+                }
+            });
+        }
+
+        // Sahifa yuklanganda ishga tushirish
+        renderProducts();
+
     </script>
 </body>
 </html>
