@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="uz">
 <head>
-  <meta charset="UTF-8">
-  <title>Shop</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta charset="UTF-8">
+    <title>WebApp Shop</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
@@ -11,40 +11,34 @@
 <div id="products"></div>
 
 <script>
-  const tg = window.Telegram.WebApp;
-  tg.ready();
+    const tg = window.Telegram.WebApp;
+    tg.ready();
 
-  // Telegram user ma’lumoti
-  const user = tg.initDataUnsafe.user;
+    const user = tg.initDataUnsafe.user;
 
-  document.getElementById("user").innerText =
-    `Salom, ${user.first_name} (@${user.username})`;
+    document.getElementById("user").innerText =
+        `Salom, ${user.first_name} (@${user.username})`;
 
-  // Backendga user_id yuboramiz
-  fetch("https://yourapi.com/api/data", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      user_id: user.id
+    fetch("http://localhost:5000/api/data", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ user_id: user.id })
     })
-  })
-  .then(res => res.json())
-  .then(data => {
-    let html = "";
-    data.products.forEach(p => {
-      html += `
-        <div>
-          <h3>${p.name}</h3>
-          <p>${p.description}</p>
-          <b>${p.price} so‘m</b>
-          <hr>
-        </div>
-      `;
+    .then(res => res.json())
+    .then(data => {
+        let html = "";
+        data.products.forEach(p => {
+            html += `
+                <div>
+                    <h3>${p.name}</h3>
+                    <p>${p.description}</p>
+                    <b>${p.price} so‘m</b>
+                    <hr>
+                </div>
+            `;
+        });
+        document.getElementById("products").innerHTML = html;
     });
-    document.getElementById("products").innerHTML = html;
-  });
 </script>
 
 </body>
