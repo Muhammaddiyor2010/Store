@@ -1,45 +1,48 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <title>WebApp Shop</title>
+    <title>Do‘kon</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
+
 <body>
 
-<h2 id="user"></h2>
-<div id="products"></div>
+    <h2>🛒 Do‘kon</h2>
+    <div id="products"></div>
 
-<script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-    const user = tg.initDataUnsafe.user;
+        fetch("../api/products.php")
+            .then(res => res.json())
+            .then(data => {
+                data.products.forEach(p => {
+                    document.getElementById("products").innerHTML += `
+        <div>
+          <h3>${p.name}</h3>
+          <p>${p.description}</p>
+          <b>${p.price} ball</b>
+          <button onclick="buy(${p.id})">Sotib olish</button>
+        </div>
+      `;
+                });
+            });
 
-    document.getElementById("user").innerText =
-        `Salom, ${user.first_name} (@${user.username})`;
+        function buy(product_id) {
+            fetch("../api/buy.php", {
+                method: "POST",
+                body: new URLSearchParams({
+                    user_id: tg.initDataUnsafe.user.id,
+                    product_id
+                })
+            })
+                .then(res => res.json())
+                .then(r => alert(r.msg));
+        }
 
-    fetch("http://localhost:5000/api/data", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ user_id: user.id })
-    })
-    .then(res => res.json())
-    .then(data => {
-        let html = "";
-        data.products.forEach(p => {
-            html += `
-                <div>
-                    <h3>${p.name}</h3>
-                    <p>${p.description}</p>
-                    <b>${p.price} so‘m</b>
-                    <hr>
-                </div>
-            `;
-        });
-        document.getElementById("products").innerHTML = html;
-    });
-</script>
-
+    </script>
 </body>
+
 </html>
